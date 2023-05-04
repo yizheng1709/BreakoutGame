@@ -206,16 +206,8 @@
         score += 10;
         scoreText.setText(`Points: ${score}`);
 
-        let count_alive = 0;
-        // loop through the bricks in the group using bricks.children, 
-        // checking for the aliveness of each with each brick's .alive() method
-        for (let i = 0; i < bricks.children.length; i++) {
-            if (bricks.children[i].alive) {
-            count_alive++;
-            }
-        }
-        if (count_alive === 0) {
-            alert("Aye! You won the game, congratz!");
+        if (score === brickInfo.count.row*brickInfo.count.col*10) {
+            alert('You won the game, congratulations!');
             location.reload();
         }
       }
