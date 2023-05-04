@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" />
+    <title>Gamedev Phaser Workshop - lesson 01: Initialize the framework</title>
+    <style>
+      * {
+        padding: 0;
+        margin: 0;
+      }
+    </style>
+    <script src="js/phaser.min.js"></script>
+  </head>
+  <body>
+    <script>
+      const game = new Phaser.Game(480, 320, Phaser.CANVAS, null, {
+        preload, // takes care of preloading the assets
+        create, // executed once when everything is loaded and ready
+        update, // executed every frame
+      });
+      let ball;
+      let paddle;
+      // used to create a group
+      let bricks;
+      // new brick to be added to the group
+      let newBrick;
+      // stores info of bricks
+      let brickInfo;
+
+      // keep track of score
+      let scoreText;
+      let score = 0;
+
+      // add lives to keep game going on for longer
+      let lives = 3;
+      let livesText;
+      let lifeLostText;
+
+      // implement start button
+      let playing = false;
+      let startButton;
+
+      function preload() {
+        // scales the canvas while keeping aspect ratio
+        game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL; 
+        game.scale.pageAlignHorizontally = true;
+        game.scale.pageAlignVertically = true;
+        game.stage.backgroundColor = "#eee";
+
+        /*
+            Loading Images
+        */
+
+        // first param is name of asset we want to give
+        // second param is path
+        game.load.image("ball", "img/ball.png");
+        game.load.image("paddle", "img/paddle.png");
+        game.load.image("brick", "img/brick.png");
+        // two extra parameters determine the width and height of each single frame in the given spritesheet file
+        // indicating to the program how to chop it up to get the individual frames.
+        game.load.spritesheet("ball", "img/wobble.png", 20, 20);
+        // add start button
+        game.load.spritesheet("button", "img/button.png", 120, 40);
+      }
+      function create() {
+        // add physics to game
+        game.physics.startSystem(Phaser.Physics.ARCADE);
+
+        // render ball
+        // want to place it on top of the paddle
+        ball = game.add.sprite(game.world.width * 0.5, game.world.height - 25, "ball");
+        ball.anchor.set(0.5);
+        ball.animations.add("wobble", [0, 1, 0, 2, 0, 1, 0, 2, 0], 24);
+
+        // enable ball for physics
+        game.physics.enable(ball, Phaser.Physics.ARCADE);
+
+        // set boundaries
+        ball.body.collideWorldBounds = true;
+
+        // ability to lose is when ball falls off the bottom
+        game.physics.arcade.checkCollision.down = false;
+
+        ball.checkWorldBounds = true;
+        // add() binds the given function and causes it to be executed every time the event occurs
+        ball.events.onOutOfBounds.add(ballLeaveScreen, this);
+
+        // make the ball bounce 
+        ball.body.bounce.set(1);
+
+        // add paddle to game
+        paddle = game.add.sprite(
+            game.world.width * 0.5,
+            game.world.height - 5,
+            "paddle"
+        );
+
+        // have the anchor in the middle of the paddle's width and at the bottom of its height
+        paddle.anchor.set(0.5, 1);
+
+        // enable physics for paddle
+        game.physics.enable(paddle, Phaser.Physics.ARCADE);
+
+        // don't want the paddle to fall off upon initial contact
+        paddle.body.immovable = true;
+
+        // create the bricks
+        initBricks();
+
+        textStyle = { font: "18px Arial", fill: "#0095DD" };
+
+        // text() method takes 4 params
+        // x coord, y coord, rendered text, and font style
+        scoreText = game.add.text(5, 5, "Points: 0", textStyle);
+
+        // add text to keep count of player's lives count
+        livesText = game.add.text(
+            game.world.width - 5,
+            5,
+            `Lives: ${lives}`,
+            textStyle
+        );
+        livesText.anchor.set(1, 0);
+        lifeLostText = game.add.text(
+            game.world.width * 0.5,
+            game.world.height * 0.5,
+            "Life lost, click to continue",
+            textStyle
+        );
+        lifeLostText.anchor.set(0.5);
+        lifeLostText.visible = false;
+
+        startButton = game.add.button(
+            // x, y coords
+            game.world.width * 0.5,
+            game.world.height * 0.5,
+            // name of asset
+            "button",
+            // callback fn that will be executed
+            startGame,
+            // execution context
+            this,
+            // frames that will be used for the 'hover', 'out', and 'clicked' events
+            1,
+            0,
+            2
+        );
+        startButton.anchor.set(0.5);
+      }
+      function update() {
+        // the framework can take care of checking the collision detection on every frame
+        game.physics.arcade.collide(ball, paddle, ballHitPaddle);
+        // ball's position is calculated against the positions of all the bricks in the group
+        // third, optional parameter is the function executed when a collision occurs
+        game.physics.arcade.collide(ball, bricks, ballHitBrick);
+        if (playing) {
+            paddle.x = game.input.x || game.world.width * 0.5;
+        }
+      }
+      function initBricks() {
+        brickInfo = {
+            width: 50,
+            height: 20,
+            count: {
+                row: 3,
+                col: 7,
+            },
+            offset: {
+                top: 50,
+                left: 60,
+            },
+            padding: 10,
+        };
+        bricks = game.add.group();
+        // create exact numner of bricks we need
+        for (let c = 0; c < brickInfo.count.col; c++) {
+            for (let r = 0; r < brickInfo.count.row; r++) {
+
+                // draw each brick at its own x and y position
+                const brickX =
+                    c * (brickInfo.width + brickInfo.padding) + brickInfo.offset.left;
+                const brickY =
+                    r * (brickInfo.height + brickInfo.padding) + brickInfo.offset.top;
+
+                newBrick = game.add.sprite(brickX, brickY, "brick");
+                // newly created brick is enabled for the Arcade physics engine
+                game.physics.enable(newBrick, Phaser.Physics.ARCADE);
+                // so it won't move when hit by the ball
+                newBrick.body.immovable = true;
+                newBrick.anchor.set(0.5);
+                bricks.add(newBrick);
+            }
+        }
+      }
+      function ballHitBrick(ball, brick) {
+        const killTween = game.add.tween(brick.scale);
+        // make brick's width and height scale to zero, so it will nicely disappear
+        // 200 milliseconds to disappear
+        killTween.to({x:0,y:0}, 200, Phaser.Easing.Linear.None);
+        killTween.onComplete.addOnce(function(){
+            brick.kill();
+        }, this);
+        killTween.start();
+
+
+        score += 10;
+        scoreText.setText(`Points: ${score}`);
+
+        let count_alive = 0;
+        // loop through the bricks in the group using bricks.children, 
+        // checking for the aliveness of each with each brick's .alive() method
+        for (let i = 0; i < bricks.children.length; i++) {
+            if (bricks.children[i].alive) {
+            count_alive++;
+            }
+        }
+        if (count_alive === 0) {
+            alert("Aye! You won the game, congratz!");
+            location.reload();
+        }
+      }
+
+      function ballLeaveScreen() {
+        //  first subtract one life from the current number and check if it's a non-zero value
+        lives--;
+        if (lives) {
+            // player still has some lives left and can continue to play
+            // will see the life lost message
+            livesText.setText(`Lives: ${lives}`);
+            lifeLostText.visible = true;
+            // the ball and paddle positions will be reset on screen
+            ball.reset(game.world.width * 0.5, game.world.height - 25);
+            paddle.reset(game.world.width * 0.5, game.world.height - 5);
+            // addOnce() is useful when you want to have the bound function executed only once 
+            // and then unbound so it is not executed again
+            game.input.onDown.addOnce(() => {
+            lifeLostText.visible = false;
+            ball.body.velocity.set(350, -350);
+            }, this);
+        } else {
+            // no lives left, then the game is over and the game over alert message will be shown
+            alert("You lost :( Try again?");
+            location.reload();
+        }
+    }
+    function ballHitPaddle(ball, paddle) {
+        ball.animations.play("wobble");
+        // change the ball's velocity depending on the exact spot it hits the paddle
+        ball.body.velocity.x = -5.758 * (paddle.x - ball.x);
+    }
+    function startGame() {
+        startButton.destroy();
+        ball.body.velocity.set(350, -350);
+        playing = true;
+    }
+    </script>
+  </body>
+</html>
